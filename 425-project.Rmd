@@ -1,5 +1,5 @@
 ---
-title: "425 Project Part II"
+title: "425 Project working draft"
 output:
   word_document:
     fig_height: 5
@@ -7,6 +7,86 @@ output:
 date: "April 7"
 author: "Nicole Kamarat, Ella Peterson"
 ---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE,
+                      warning = FALSE)
+options(show.signif.stars = FALSE)
+
+library(ggplot2)
+library(patchwork)
+library(ggResidpanel)
+library(ggthemes)
+library(cardx)
+library(easyalluvial)
+library(ggmosaic)
+library(catstats2)
+library(ggrepel)
+library(cetcolor)
+library(gtsummary)
+library(readxl)
+library(mosaic)
+library(tidyverse)
+library(vcd)
+library(epitools)
+library(car)
+library(survival)
+library(survminer)
+library(mice)
+library(ggsurvfit)
+library(lubridate)
+library(rifttable)
+library(CoxR2)
+library(MuMIn)
+library(emmeans)
+library(multcomp)
+library(splines)
+library(splineplot)
+library(mi)
+
+theme_set(theme_bw()) #Prevents need for + theme_bw() in ggplots
+
+#read in data
+wildfires <- read.csv("wildfires.csv")
+#create a "size growth until containment" variable
+wildfires$SizeChange <- wildfires$BH_Size - wildfires$IA_Size
+wildfires$logSizeChange <- log(wildfires$SizeChange)
+
+#remove any fires that "did not grow"
+wildfire1 <- wildfires %>% filter(SizeChange!=0)
+#treat growth as a factor
+wildfire1$Growth <- factor(wildfire1$Growth)
+wildfire1$Status <- factor(wildfire1$Status)
+
+#look at missing data
+wildmdf <- missing_data.frame(as.data.frame(wildfires))
+md.pattern(wildmdf)
+```
+
+##Table 1
+```{r}
+table1 <- wildfire1 %>%
+  dplyr::select("Fuel_type", "Method", "Month", "Detection", "Period") %>%
+  tbl_summary(
+    by = Fuel_type,            
+    missing = "no",               
+    statistic = all_categorical() ~ "{n}",   
+    label = list(
+      Method ~ "Method",
+      Month ~ "Month",
+      Detection ~ "Detection",
+      Period ~ "Period"
+    )
+  ) %>%
+  add_overall() %>%                 
+  bold_labels()  
+
+
+# Print Table 1
+table1
+```
+
+
+
 ##CONSORT Diagram
 
 ```{r}
@@ -28,16 +108,15 @@ digraph consort_wcg {
   # Nodes
   n0  [label = 'lightning-Caused Wildfires in Alberta (1996-2002)']
   n1  [label = 'All Recorded Wildfires in Database \\n(n ≈ 960)']
-  n2  [label = 'Excluded excluded fires where IA occurred between the hours of 23h00 and 04h00\\n(n = 6)']
-  n3  [label = 'Cohort included in follow-up\\n(Free of clinical CHD at baseline)\\n(n = 3154)']
-  n4  [label = 'Follow-up 8–9 years\\n(mean 8.5 years)\\nAssessment of incident CHD and risk factors']
-  n5  [label = 'Developed clinical CHD\\n(n = 257)']
-  n6  [label = 'No clinical CHD event\\n(n = 2391)']
-  n7  [label = 'Incomplete follow-up / lost\\n(e.g., moved, withdrew, died of non-CHD)\\n(n = 513)']
+  n2  [label = 'Fires where IA occurred between the hours of 23h00 and 04h00\\n(n = 6)']
+  n3  [label = 'Fires with Data Coding Errors\\n(Negative Growth)\\n(n = 65)']
+  n4  [label = 'Retained for Analysis \\n(n=889)']
+  n5  [label = 'Included in Survival Analysis\\n(n = 260)']
+  n6  [label = 'No growth \\n(Excluded from Survival Analysis)\\n(n = 629)']
 
   # Ranks for nicer vertical alignment
   {rank = same; n2}
-  {rank = same; n5 n6 n7}
+  {rank = same; n5 n6}
 
   # Edges
   edge [fontname = Helvetica,
@@ -45,19 +124,17 @@ digraph consort_wcg {
 
   n0 -> n1
   n1 -> n2 [label = 'Excluded']
-  n1 -> n3 [label = 'Included in cohort']
-  n3 -> n4 [label = 'Followed prospectively']
-  n4 -> n5 [label = 'Incident CHD']
-  n4 -> n6 [label = 'No CHD event']
-  n4 -> n7 [label = 'Incomplete follow-up']
+  n1 -> n3 [label = 'Excluded']
+  n1 -> n4 [label = 'Included in Analysis']
+  n4 -> n5 [label = 'Included in Survival Analysis']
+  n4 -> n6 [label = 'Excluded from Survival Analysis']
 
 }
 ")
 
 
 ```
-
-
+```
 
 
 
