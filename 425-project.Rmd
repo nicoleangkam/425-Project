@@ -1,0 +1,271 @@
+---
+title: "425 Project Part II"
+output:
+  word_document:
+    fig_height: 5
+    fig_width: 8
+date: "April 7"
+author: "Nicole Kamarat, Ella Peterson"
+---
+##CONSORT Diagram
+
+```{r}
+library(DiagrammeR)
+
+grViz("
+digraph consort_wcg {
+  graph [layout = dot,
+         rankdir = TB]
+
+  node [shape = rectangle,
+        fontname = Helvetica,
+        fontsize = 10,
+        width = 2.8,
+        style = filled,
+        fillcolor = White,
+        color = Black]
+
+  # Nodes
+  n0  [label = 'lightning-Caused Wildfires in Alberta (1996-2002)']
+  n1  [label = 'All Recorded Wildfires in Database \\n(n ≈ 960)']
+  n2  [label = 'Excluded excluded fires where IA occurred between the hours of 23h00 and 04h00\\n(n = 6)']
+  n3  [label = 'Cohort included in follow-up\\n(Free of clinical CHD at baseline)\\n(n = 3154)']
+  n4  [label = 'Follow-up 8–9 years\\n(mean 8.5 years)\\nAssessment of incident CHD and risk factors']
+  n5  [label = 'Developed clinical CHD\\n(n = 257)']
+  n6  [label = 'No clinical CHD event\\n(n = 2391)']
+  n7  [label = 'Incomplete follow-up / lost\\n(e.g., moved, withdrew, died of non-CHD)\\n(n = 513)']
+
+  # Ranks for nicer vertical alignment
+  {rank = same; n2}
+  {rank = same; n5 n6 n7}
+
+  # Edges
+  edge [fontname = Helvetica,
+        fontsize = 9]
+
+  n0 -> n1
+  n1 -> n2 [label = 'Excluded']
+  n1 -> n3 [label = 'Included in cohort']
+  n3 -> n4 [label = 'Followed prospectively']
+  n4 -> n5 [label = 'Incident CHD']
+  n4 -> n6 [label = 'No CHD event']
+  n4 -> n7 [label = 'Incomplete follow-up']
+
+}
+")
+
+
+```
+
+
+
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE,
+                      warning = FALSE)
+options(show.signif.stars = FALSE)
+
+library(ggplot2)
+library(patchwork)
+library(ggResidpanel)
+library(ggthemes)
+library(cardx)
+library(easyalluvial)
+library(ggmosaic)
+library(catstats2)
+library(ggrepel)
+library(cetcolor)
+library(gtsummary)
+library(readxl)
+library(mosaic)
+library(tidyverse)
+library(vcd)
+library(epitools)
+library(car)
+library(survival)
+library(survminer)
+library(mice)
+library(ggsurvfit)
+library(lubridate)
+library(rifttable)
+library(CoxR2)
+library(MuMIn)
+library(emmeans)
+library(multcomp)
+library(splines)
+library(splineplot)
+
+theme_set(theme_bw()) #Prevents need for + theme_bw() in ggplots
+```
+
+
+## Data Source
+
+1) Re-report the source of your proposed data set. Print the paper to the OneNote of one group member in the Project Feedback tab and note the group member name here.
+
+**Tremblay P-O, Duchesne T, Cumming SG (2018) Survival analysis and classification methods for forest fire size. PLoS ONE 13(1): e0189860. https://doi.org/10.1371/journal.pone.0189860** In Nicole Kamarat's One Note
+
+2) Read in the data set. Re-report the missing data plot from the proposal.
+
+**Found out that if you create a missing data object on a data set that's not missing any data, R gives us a nice little cat? Cool.**
+
+```{r}
+library(mi)
+#read in data
+wildfires <- read.csv("wildfires.csv")
+#create a "size growth until containment" variable
+wildfires$SizeChange <- wildfires$BH_Size - wildfires$IA_Size
+wildfires$logSizeChange <- log(wildfires$SizeChange)
+
+#remove any fires that "did not grow"
+wildfire1 <- wildfires %>% filter(SizeChange!=0)
+#treat growth as a factor
+wildfire1$Growth <- factor(wildfire1$Growth)
+wildfire1$Status <- factor(wildfire1$Status)
+
+#look at missing data
+wildmdf <- missing_data.frame(as.data.frame(wildfires))
+md.pattern(wildmdf)
+
+wildmdf1 <- missing_data.frame(as.data.frame(wildfire1))
+md.pattern(wildmdf1)
+```
+
+3) Make an alluvial diagram using the response, censoring, and any predictors you plan to use in the models below.
+
+```{r fig.height = 8, fig.width = 12}
+library(easyalluvial)
+
+alluvial_wide(wildfire1 %>% dplyr::select("logSizeChange", "Method", "FWI", "Fuel_type", "Status"), fill_by="first_variable")
+```
+
+
+## Summary statistics
+
+4) Make a quick attempt at Table 1 that either matches some of what is in the paper for your article or related summary statistics. Missing data may complicate this and you do not need to match all the results at this point, but try to capture as much as possible from their results. If none exists, start to make a Table 1 based on available information.
+
+* Note whether you can match their summaries or not for those provided.
+
+**The paper's table 1 is just a description of all of the variables, but their table 2 is a big table of counts for how many observations are seen in each of the groups. We did not match it exactly, but we approximately made a summary table of how many observations are in each group of fuel type, method of putting out the fire, month, detection method, and period of day (AM or PM). The second table here is the same layout with just the 260 observations that we are going to focus on.**
+
+```{r}
+table1 <- wildfires %>%
+  dplyr::select("Fuel_type", "Method", "Month", "Detection", "Period") %>%
+  tbl_summary(
+    by = Fuel_type,            
+    missing = "no",               
+    statistic = all_categorical() ~ "{n}",   
+    label = list(
+      Method ~ "Method",
+      Month ~ "Month",
+      Detection ~ "Detection",
+      Period ~ "Period"
+    )
+  ) %>%
+  add_overall() %>%                 
+  bold_labels()                     
+
+table2 <- wildfire1 %>%
+  dplyr::select("Fuel_type", "Method", "Month", "Detection", "Period") %>%
+  tbl_summary(
+    by = Fuel_type,            
+    missing = "no",               
+    statistic = all_categorical() ~ "{n}",   
+    label = list(
+      Method ~ "Method",
+      Month ~ "Month",
+      Detection ~ "Detection",
+      Period ~ "Period"
+    )
+  ) %>%
+  add_overall() %>%                 
+  bold_labels()  
+
+
+# Print Table 1
+table1
+table2
+```
+
+
+5) Make a line-plot for the time to event with censoring displayed correctly for each line. Faceting can be useful if there are many observations in the data set as well as working with the fig.width and fig.height options that I set to be very large in:
+
+```{r fig.height = 12, fig.width = 12}
+wildfires %>% mutate(Growth = factor(Growth == 1)) %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:889,  yend = 1:889,  color = Growth)) + 
+  geom_segment(size = 1, alpha = 0.5) + 
+  geom_point(aes(x = SizeChange, y = 1:889, shape = Growth), size = 3) + 
+  scale_shape_manual(values = c(4, 1)) +  
+  scale_color_colorblind() 
+
+wildfire1 %>% mutate(Growth = factor(Growth == 1)) %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260,  color = Growth)) + 
+  geom_segment(size = 1, alpha = 0.5) + 
+  geom_point(aes(x = SizeChange, y = 1:260, shape = Growth), size = 3) + 
+  scale_shape_manual(values = c(4, 1)) +  
+  scale_color_colorblind() 
+
+```
+
+
+6) Make Kaplan-Meier curve plot for all the observations together. Make sure the CI, censoring marks, and risk table are included in the plot.
+
+```{r}
+ggsurvfit(survfit(Surv(logSizeChange, Status) ~ 1, data = wildfires)) +
+  add_confidence_interval() +
+  add_censor_mark() +
+  add_risktable(risktable_stats = c("n.risk", "n.event")) +
+  scale_x_log10() +
+  labs(
+    x = "Change in size (log scale)",
+    y = "Survival Probability"
+  )
+```
+
+
+
+7) Make a KM-curve plot based on a categorical variable of interest.
+
+
+```{r}
+ggsurvfit(survfit(Surv(logSizeChange, Status) ~ Fuel_type, data = wildfires)) +
+  add_confidence_interval() +
+  add_censor_mark() +
+  add_risktable(risktable_stats = c("n.risk")) +
+  scale_x_log10() +
+  labs(
+    x = "Change in size (log scale)",
+    y = "Survival Probability",
+    color = "Fuel type"
+  )
+```
+
+
+8) Discuss whether the best direction for your project based on the study design is to (1) assess focal variable(s), (2) build and assess a predictive model, or (3) fish for explanation for the time to event across many predictors. Write your RQ to match this.
+
+**We think the best course of action for this project is to assess focal variables such as Fuel_type (of shrubbery/forest), or FWI (fire weather index)) focus on exploring using growth of the fires as our "time to event" variable. Attempting to find the best model that includes one of these focal variables would be an interesting project, as well as exploring how using growth instead of time changes our interpretations.**
+
+**RQ: Is there a relationship between fire weather index/fuel type and how much a wildfire grows?**
+
+9) Discuss how you plan to assess/refine/tune your proposed model to address the research question.
+
+**We can use AIC for model selection using dredge, or we could use backwards selection and see if we end up with the same final model as them. **
+
+10) Fit an initial Cox model with one or more predictors that relate to your RQ. Generate a model summary and run the Cox proportional hazards test on your model.
+
+```{r}
+fit <- coxph(Surv(BH_Size, as.numeric(Status)) ~ Fuel_type + FWI, data = wildfire1)
+summary(fit)
+cox.zph(fit)
+```
+
+
+11) Report on any use of generative AI or help from students outside of your group in completing the first step of the project.
+
+**I was getting an error for my coxph model, and I used chatgpt to help figure out what was wrong (I had status as "int" and needed it as "num".**
+
+Graded for completion/not - expect potential feedback to make revisions to help provide a basis for working on your final report. 
+
