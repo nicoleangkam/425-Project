@@ -42,76 +42,63 @@ library(multcomp)
 library(splines)
 library(splineplot)
 library(mi)
-library(dplyr)
 
 theme_set(theme_bw()) #Prevents need for + theme_bw() in ggplots
+```
 
-#read in data
+## Data
+
+```{r}
+# read in data
 wildfires <- read.csv("wildfires.csv")
 #create a "size growth until containment" variable
 wildfires$SizeChange <- wildfires$BH_Size - wildfires$IA_Size
 wildfires$logSizeChange <- log(wildfires$SizeChange)
 
-#remove any fires that "did not grow"
+# remove any fires that "did not grow"
 wildfire1 <- wildfires %>% filter(SizeChange!=0)
-#treat growth as a factor
-wildfire1$Growth <- factor(wildfire1$Growth)
-wildfire1$Status <- factor(wildfire1$Status)
+# factor categorical variables
+wildfire1 <- wildfire1 %>% 
+  mutate(GrowthF = factor(Growth),
+         StatusF = factor(Status),
+         Fuel_type = factor(Fuel_type),
+         Method = factor(Method),
+         Period = factor(Period),
+         Detection = factor(Detection))
 
+# MAYBE (if it would be useful for random froest model with all vars)
+# select only variables of interest
+#wfReduced <- wildfire1 #%>% select(-c())
+```
+
+
+## Missing + Tables + CONSORT
+
+```{r}
 #look at missing data
-wildmdf <- missing_data.frame(as.data.frame(wildfires))
+wildmdf <- missing_data.frame(as.data.frame(wildfire1))
 md.pattern(wildmdf)
 ```
 
-##Table 1
+
 ```{r}
-table1 <- wildfire1 %>%
-  dplyr::select(Fuel_type, Method, Detection, FWI) %>%
+counts_table <- wildfire1 %>%
+  dplyr::select("Fuel_type", "Method", "Month", "Detection", "Period") %>%
   tbl_summary(
-    by = Fuel_type,
-    missing = "no",
-    statistic = all_categorical() ~ "{n}",
+    by = Fuel_type,            
+    missing = "no",               
+    statistic = all_categorical() ~ "{n}",   
     label = list(
       Method ~ "Method",
+      Month ~ "Month",
       Detection ~ "Detection",
-      FWI ~ "Fire Weather Index"
+      Period ~ "Period"
     )
   ) %>%
-  add_overall() %>%
-  bold_labels() %>%
-  modify_caption("**Table 1. Summary of Fire Characteristics by Fuel Type**")
-
-# Print Table 1
-table1
+  add_overall() %>%                 
+  bold_labels()  
+counts_table
 ```
-
-## Kaplan Meier Curve
-```{r}
-ggsurvfit(survfit(Surv(SizeChange, Status) ~ 1, data = wildfires)) +
-  add_confidence_interval() +
-  add_censor_mark() +
-  add_risktable(risktable_stats = c("n.risk", "n.event")) +
-  scale_x_log10() +
-  labs(
-    x = "Change in Size (Hectares)",
-    y = "Survival Probability"
-  )
-
-ggsurvfit(survfit(Surv(SizeChange, Status) ~ Fuel_type, data = wildfires)) +
-  add_confidence_interval() +
-  add_censor_mark() +
-  add_risktable(risktable_stats = c("n.risk")) +
-  scale_x_log10() +
-  labs(
-    x = "Change in size (Hectares)",
-    y = "Survival Probability",
-    color = "Fuel type"
-  )
-```
-
-
-
-##CONSORT Diagram
 
 ```{r}
 library(DiagrammeR)
@@ -130,13 +117,13 @@ digraph consort_wcg {
         color = Black]
 
   # Nodes
-  n0  [label = 'lightning-Caused Wildfires in Alberta (1996-2002)']
+  n0  [label = 'Lightning-Caused Wildfires in Alberta (1996-2002)']
   n1  [label = 'All Recorded Wildfires in Database \\n(n ≈ 960)']
   n2  [label = 'Fires where IA occurred between the hours of 23h00 and 04h00\\n(n = 6)']
   n3  [label = 'Fires with Data Coding Errors\\n(Negative Growth)\\n(n = 65)']
   n4  [label = 'Retained for Analysis \\n(n=889)']
   n5  [label = 'Included in Survival Analysis\\n(n = 260)']
-  n6  [label = 'No growth \\n(Excluded from Survival Analysis)\\n(n = 629)']
+  n6  [label = 'No Growth \\n(Excluded from Survival Analysis)\\n(n = 629)']
 
   # Ranks for nicer vertical alignment
   {rank = same; n2}
@@ -150,11 +137,162 @@ digraph consort_wcg {
   n1 -> n2 [label = 'Excluded']
   n1 -> n3 [label = 'Excluded']
   n1 -> n4 [label = 'Included in Analysis']
-  n4 -> n5 [label = 'Included in Survival Analysis']
-  n4 -> n6 [label = 'Excluded from Survival Analysis']
+  n4 -> n5 [label = 'Included in\nSurvival Analysis']
+  n4 -> n6 [label = 'Excluded from\nSurvival Analysis']
 
 }
 ")
 
 
 ```
+
+
+## EDA
+
+```{r}
+#############
+# VARIABLES #
+#############
+
+# investigate log transforming resp (size change)
+SizeChangeOG.p <- wildfire1 %>% 
+  ggplot() +
+  geom_histogram(aes(x = SizeChange), 
+      color = "hotpink4", fill = "hotpink3") +
+  labs(
+    title = "Figure X",
+    x = "size change (hectors)"
+  )
+SizeChangeLOG.p <- wildfire1 %>% 
+  ggplot() +
+  geom_histogram(aes(x = logSizeChange),
+      color = "hotpink4", fill = "hotpink3") +
+  labs(
+    x = "logged size change (log hectors)"
+  )
+SizeChangeOG.p / SizeChangeLOG.p
+```
+
+```{r fig.height = 8, fig.width = 12}
+# ALLUVIAL DIAGRAM #
+library(easyalluvial)
+wildfire1 %>% 
+  dplyr::select(Method, Fuel_type, Detection, Period, GrowthF) %>%  # categorical variables only
+  alluvial_wide(fill_by = "first_variable")
+```
+
+```{r fig.height = 12, fig.width = 12}
+#############
+# LINE PLOT #
+#############
+
+# unfaceted
+wildfire1 %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260)) + 
+  geom_segment(size = 1, alpha = 0.5) + 
+  geom_point(aes(x = SizeChange, y = 1:260), 
+             size = 3, pch = 1) + 
+  labs(title = "Figure X",
+       x = "Size Change (hectors)",
+       y = "Fire ID")
+
+# by Method
+wildfire1 %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260)) + 
+  geom_segment(size = 1, alpha = 0.5) + 
+  geom_point(aes(x = SizeChange, y = 1:260), 
+             size = 3, pch = 1) + 
+  facet_wrap(~Method) +
+  labs(title = "Figure X",
+       x = "Size Change (hectors)",
+       y = "Fire ID")
+
+# by Fuel Type
+wildfire1 %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260)) + 
+  geom_segment(size = 1, alpha = 0.5) + 
+  geom_point(aes(x = SizeChange, y = 1:260), 
+             size = 3, pch = 1) + 
+  facet_wrap(~Fuel_type) +
+  labs(title = "Figure X",
+       x = "Size Change (hectors)",
+       y = "Fire ID")
+```
+
+```{r}
+############
+# KM-CURVE #
+############
+
+# ungrouped
+ggsurvfit(survfit(Surv(logSizeChange, Status) ~ 1, data = wildfire1)) +
+  add_confidence_interval() +
+  add_censor_mark() +
+  add_risktable(risktable_stats = c("n.risk", "n.event")) +
+  labs(
+    title = "Figure X",
+    x = "change in size (log hectors)",
+    y = "Survival Probability"
+  )
+
+# by Fuel Type
+ggsurvfit(survfit(Surv(logSizeChange, Status) ~ Fuel_type, data = wildfire1)) +
+  add_confidence_interval(show.legend = FALSE) +
+  add_censor_mark() +
+  add_risktable(risktable_stats = c("n.risk")) +
+  labs(
+    title = "Figure X",
+    x = "change in size (log hectars)",
+    y = "Survival Probability",
+    color = "Fuel Type"
+  ) +
+  theme(legend.position = "right")
+
+# by Method
+ggsurvfit(survfit(Surv(logSizeChange, Status) ~ Method, data = wildfire1)) +
+  add_confidence_interval(show.legend = FALSE) +
+  add_risktable(risktable_stats = c("n.risk")) +
+  add_censor_mark() +
+  labs(
+    title = "Figure X",
+    x = "change in size (log hectars)",
+    y = "Survival Probability",
+    color = "Method"
+  ) +
+  theme(legend.position = "right")
+
+# by Detection
+ggsurvfit(survfit(Surv(logSizeChange, Status) ~ Detection, data = wildfire1)) +
+  add_confidence_interval(show.legend = FALSE) +
+  add_risktable(risktable_stats = c("n.risk")) +
+  add_censor_mark() +
+  labs(
+    title = "Figure X",
+    x = "change in size (log hectars)",
+    y = "Survival Probability",
+    color = "Detection"
+  ) +
+  theme(legend.position = "right")
+
+# by Period
+ggsurvfit(survfit(Surv(logSizeChange, Status) ~ Period, data = wildfire1)) +
+  add_confidence_interval(show.legend = FALSE) +
+  add_risktable(risktable_stats = c("n.risk")) +
+  add_censor_mark() +
+  labs(
+    title = "Figure X",
+    x = "change in size (log hectars)",
+    y = "Survival Probability",
+    color = "Method"
+  ) +
+  theme(legend.position = "right")
+```
+
+
+## Analysis
+
+## Assumptions
+
+## Effects Plots + Coefficient Tables
+
+
