@@ -291,7 +291,6 @@ ggsurvfit(survfit(Surv(logSizeChange, Status) ~ Period, data = wildfire1)) +
 
 ## Analysis
 
-<<<<<<< HEAD
 ```{r}
 #################
 #### DREDGE ####
@@ -317,10 +316,6 @@ coxzph %>% ggcoxzph
 
 ## Effects Plots + Coefficient Tables
 
-=======
 ## Assumptions
 
 ## Effects Plots + Coefficient Tables
-
-
->>>>>>> c485e12c8c4cc6b26bcf7d86271b7a17bd5b5e04
