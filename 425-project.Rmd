@@ -308,8 +308,11 @@ topmodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ factor(Fuel_type) + FWI + log
 ## Assumptions
 
 ```{r}
-topmodel %>% ggcoxfunctional()
+coxzph <- cox.zph(topmodel)
+coxzph
+coxzph %>% ggcoxzph
 ```
 
 
 ## Effects Plots + Coefficient Tables
+
