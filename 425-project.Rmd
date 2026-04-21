@@ -64,7 +64,8 @@ wildfire1 <- wildfire1 %>%
          Fuel_type = factor(Fuel_type),
          Method = factor(Method),
          Period = factor(Period),
-         Detection = factor(Detection))
+         Detection = factor(Detection),
+         Month = factor(Month))
 
 # MAYBE (if it would be useful for random froest model with all vars)
 # select only variables of interest
@@ -292,18 +293,161 @@ ggsurvfit(survfit(Surv(logSizeChange, Status) ~ Period, data = wildfire1)) +
 ## Analysis
 
 ```{r}
-#################
-#### DREDGE ####
-#################
+##############
+# TRAIN/TEST #
+##############
 
-#Original full model used in paper
-model11 <- coxph(Surv(IA_Size, BH_Size, Status) ~ FWI + factor(Method) + number_of_fire + factor(Period) + factor(Detection) + factor(Month) + factor(Fuel_type) + logIA_Size + logResp_time + FWI*logIA_Size + factor(Fuel_type)*logIA_Size + factor(Method)*number_of_fire + factor(Method)*logIA_Size, data = wildfire1)
-
-options(na.action = "na.fail")
-dredge <- dredge(model11)
-
-topmodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ factor(Fuel_type) + FWI + logIA_Size, data = wildfire1)
+set.seed(425) # run code sequentially once
+wf_train <- wildfire1 %>% slice_sample(prop = 0.7)
+wf_test <- wildfire1 %>% anti_join(wf_train)
 ```
+
+
+```{r}
+#################
+#### DREDGE #####
+#################
+
+## START-STOP ##
+# Original full model used in paper
+model11 <- coxph(Surv(IA_Size, BH_Size, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + logResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
+# dredge
+options(na.action = "na.fail")
+dredge <- dredge(model11, rank = "AIC")
+# within 2 delta AIC:
+#     (Int) Ful_typ      FWI lIA_Siz lgR_tim Mth Mnt nmb_of_fir Prd FWI:lIA_Siz Mth:nmb_of_fir df   logLik    AIC delta weight
+# 71       +       + -0.04135                       +                                            8 -592.947 1201.9  0.00  0.132
+# 79       +       + -0.03898 0.06369               +                                            9 -592.203 1202.4  0.51  0.102
+# 4327     +       + -0.04302                   +   +  -0.006429                              + 16 -585.216 1202.4  0.54  0.101
+# 327      +       + -0.04041                       +              +                             9 -592.416 1202.8  0.94  0.083
+# 4263     +       + -0.03947                   +      -0.003767                              + 12 -589.477 1203.0  1.06  0.078
+# 335      +       + -0.03810 0.06246               +              +                            10 -591.696 1203.4  1.50  0.062
+# 7        +       + -0.03769                                                                    4 -597.721 1203.4  1.55  0.061
+# 1039     +       + -0.04669 0.21280                                  -0.007411                 6 -595.777 1203.6  1.66  0.058
+# 1103     +       + -0.04532 0.15440               +                  -0.004575                10 -591.794 1203.6  1.69  0.057
+# 4335     +       + -0.04156 0.04936           +   +  -0.005381                              + 17 -584.802 1203.6  1.71  0.056
+# 4343     +       + -0.04173         0.03956   +   +  -0.006810                              + 17 -584.855 1203.7  1.82  0.053
+# 15       +       + -0.03558 0.06797                                                            5 -596.870 1203.7  1.85  0.052
+# 87       +       + -0.04076         0.01781       +                                            9 -592.873 1203.7  1.85  0.052
+# 199      +       + -0.04060                       +  -0.002460                                 9 -592.879 1203.8  1.86  0.052
+
+# check assumptions for models
+# > model71 (top)
+model71 <- coxph(Surv(IA_Size, BH_Size, Status) ~ Fuel_type + FWI + Month, data = wf_train)
+coxzph71 <- cox.zph(model71)
+coxzph71
+coxzph71 %>% ggcoxzph
+# >> PH: one lowish p-value = 0.039, global = 0.169: meh
+vif(model71)
+# >> Multicolinearity: met!
+
+# > model7
+model7 <- coxph(Surv(IA_Size, BH_Size, Status) ~ Fuel_type + FWI, data = wf_train)
+coxzph7 <- cox.zph(model7)
+coxzph7
+coxzph7 %>% ggcoxzph
+# >> PH: multiple lowish p-values, global = 0.027: worse than top model
+vif(model7)
+# >> Multicolinearity: met!
+
+# > model15
+model15 <-coxph(Surv(IA_Size, BH_Size, Status) ~ Fuel_type + FWI + logIA_Size, data = wf_train)
+coxzph15 <- cox.zph(model15)
+coxzph15
+coxzph15 %>% ggcoxzph
+# >> PH: a couple lowish p-values, global = 0.067 : worse than top
+vif(model15)
+# >> Multicolinearity: met!
+
+# > model1039
+model1039 <-coxph(Surv(IA_Size, BH_Size, Status) ~ Fuel_type + FWI*logIA_Size, data = wf_train)
+coxzph1039 <- cox.zph(model1039)
+coxzph1039
+coxzph1039 %>% ggcoxzph
+# >> PH: a couple lowish p-values, global = 0.065 : worse than top
+vif(model15)  # interaction in 1039 so use model that's the same just without interaction
+# >> Multicolinearity: met!
+
+
+
+## LOGSIZECHANGE
+# paper's full model (with logSizeChange) 
+logmodel11 <- coxph(Surv(logSizeChange, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + logResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
+# dredge
+options(na.action = "na.fail")
+logdredge <- dredge(logmodel11, rank = "AIC")
+#      (Int) Ful_typ      FWI lIA_Siz lgR_tim Mth Mnt nmb_of_fir Prd FWI:lIA_Siz Mth:nmb_of_fir df   logLik    AIC delta weight
+# 5359     +       + -0.04317 -0.5222           +   +  -0.012960        0.012130              + 18 -705.042 1446.1  0.00  0.232
+# 1103     +       + -0.04698 -0.4401               +                   0.008974                10 -713.463 1446.9  0.84  0.152
+# 1231     +       + -0.04542 -0.4393               +  -0.009921        0.008064                11 -712.482 1447.0  0.88  0.150
+# 1135     +       + -0.04298 -0.5088           +   +                   0.012600                14 -709.897 1447.8  1.71  0.099
+# 207      +       + -0.05569 -0.2909               +  -0.011490                                10 -713.903 1447.8  1.72  0.098
+# 5375     +       + -0.04302 -0.5175 0.01871   +   +  -0.013230        0.011780              + 19 -704.967 1447.9  1.85  0.092
+# 1487     +       + -0.04305 -0.4572               +  -0.010380   +    0.008906                12 -711.995 1448.0  1.91  0.090
+# 5615     +       + -0.04266 -0.5255           +   +  -0.012750   +    0.012290              + 19 -705.021 1448.0  1.96  0.087
+
+# check assumptions for models
+# > model 5359 (top)
+model5359 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Method*number_of_fire + Month, data = wf_train)
+coxzph5359 <- cox.zph(model5359)
+coxzph5359
+coxzph5359 %>% ggcoxzph
+# >> PH: many low p-values, global < 0.0001 : awful
+noint5359 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Method + number_of_fire + Month, data = wf_train)
+vif(noint5359)
+# >> Multicolinearity: met!
+
+# > model 1103 
+model1103 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Month, data = wf_train)
+coxzph1103 <- cox.zph(model1103)
+coxzph1103
+coxzph1103 %>% ggcoxzph
+# >> PH: many low p-values, global < 0.0001 : awful
+noint1103 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Month, data = wf_train)
+vif(noint1103)
+# >> Multicolinearity: met!
+
+# > model 207  <- HERE!!!!!!!!!!!!!! UPDATE BELOW!!!!!!!!!!!  NOTHING BELOW IS ACCRATE!!!!!!!!!!!!!!!!!!!
+model207 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Month, data = wf_train)
+coxzph1103 <- cox.zph(model207)
+coxzph1103
+coxzph1103 %>% ggcoxzph
+# >> PH: many low p-values, global < 0.0001 : awful
+noint1103 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Month, data = wf_train)
+vif(noint1103)
+# >> Multicolinearity: met!
+
+
+
+
+# define top model
+logtopmodel <- coxph(Surv(logSizeChange, Status) ~ factor(Fuel_type) + FWI + logIA_Size, data = wf_train)
+
+
+
+## SIZECHANGE
+# paper's full model (with SizeChange) 
+unlogmodel11 <- coxph(Surv(SizeChange, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + unlogResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
+# dredge
+options(na.action = "na.fail")
+unlogdredge <- dredge(logmodel11)
+# define top model
+unlogtopmodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ factor(Fuel_type) + FWI + logIA_Size, data = wf_train)
+```
+
+
+```{r}
+##############
+# TOP MODELS #
+##############
+
+## START-STOP 
+# choose top model by AIC (model71) as best model (highest global p-value for PH)
+startstop_topmodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ Fuel_type + FWI + Month, data = wf_train)
+
+## 
+```
+
 
 ## Assumptions
 
@@ -355,26 +499,16 @@ contsize
 
 
 
-
+## Prediction + Comparison
 
 
 ```{r}
-########################
-##Comparing Paper Model#
-########################
-
-##Top model from original paper
+#################
+# PAPER'S MODEL #
+#################
 
 papermodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ FWI + factor(Method) + factor(Fuel_type), data = wildfire1)
 
-
-##Creating factor variables and testing and training sets
-wildfire1 <- wildfire1 %>% mutate(Fuel_typeF = factor(Fuel_type), 
-                     MonthF = factor(Month),
-                     MethodF = factor(Method))
-set.seed(123) #Run code sequentially once
-wf_train <- wildfire1 %>% slice_sample(prop = 0.7)
-wf_test <- wildfire1 %>% anti_join(wf_train)
 
 dim(wf_train)
 dim(wf_test)
