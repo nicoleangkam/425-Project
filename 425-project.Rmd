@@ -339,3 +339,58 @@ topmodel %>% ggcoxdiagnostics()
 
 topmodel %>% tbl_regression(exponentiate = T)
 ```
+
+```{r}
+library(contsurvplot)
+wildfire1 <- wildfire1 %>% 
+  mutate(shiftedLogSizeChange = logSizeChange - min(logSizeChange))
+contsize <- plot_surv_contour(time="shiftedLogSizeChange",
+               status = "Status",
+               variable="FWI",
+               data= wildfire1,
+               model=topmodel) 
+
+contsize 
+```
+
+
+
+
+
+
+```{r}
+########################
+##Comparing Paper Model#
+########################
+
+##Top model from original paper
+
+papermodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ FWI + factor(Method) + factor(Fuel_type), data = wildfire1)
+
+
+##Creating factor variables and testing and training sets
+wildfire1 <- wildfire1 %>% mutate(Fuel_typeF = factor(Fuel_type), 
+                     MonthF = factor(Month),
+                     MethodF = factor(Method))
+set.seed(123) #Run code sequentially once
+wf_train <- wildfire1 %>% slice_sample(prop = 0.7)
+wf_test <- wildfire1 %>% anti_join(wf_train)
+
+dim(wf_train)
+dim(wf_test)
+
+
+
+##Run Models with training data##
+topcox <- ####INSERT TOP MODEL HERE
+papcox <- coxph(Surv(logSizeChange, Status) ~ FWI + MethodF + Fuel_typeF, data = wf_train, x=T)
+
+
+
+##### NOT WORKING #####
+
+pecres <- pec(list(topcox, papcox), 
+              data = wf_train, splitMethod = "cv10")
+plot(pecres)
+pecres
+```
