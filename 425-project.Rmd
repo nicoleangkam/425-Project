@@ -42,6 +42,7 @@ library(multcomp)
 library(splines)
 library(splineplot)
 library(mi)
+library(pec)
 
 theme_set(theme_bw()) #Prevents need for + theme_bw() in ggplots
 ```
@@ -370,7 +371,7 @@ vif(model15)  # interaction in 1039 so use model that's the same just without in
 
 
 
-## LOGSIZECHANGE
+## LOGSIZECHANGE ##
 # paper's full model (with logSizeChange) 
 logmodel11 <- coxph(Surv(logSizeChange, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + logResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
 # dredge
@@ -388,7 +389,7 @@ logdredge <- dredge(logmodel11, rank = "AIC")
 
 # check assumptions for models
 # > model 5359 (top)
-model5359 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Method*number_of_fire + Month, data = wf_train)
+model5359 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Method*number_of_fire + Month, data = wf_train, x = T)
 coxzph5359 <- cox.zph(model5359)
 coxzph5359
 coxzph5359 %>% ggcoxzph
@@ -402,37 +403,101 @@ model1103 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Mo
 coxzph1103 <- cox.zph(model1103)
 coxzph1103
 coxzph1103 %>% ggcoxzph
-# >> PH: many low p-values, global < 0.0001 : awful
+# >> PH: low p-values, global < 0.0001 : awful
 noint1103 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Month, data = wf_train)
 vif(noint1103)
 # >> Multicolinearity: met!
 
-# > model 207  <- HERE!!!!!!!!!!!!!! UPDATE BELOW!!!!!!!!!!!  NOTHING BELOW IS ACCRATE!!!!!!!!!!!!!!!!!!!
-model207 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Month, data = wf_train)
-coxzph1103 <- cox.zph(model207)
-coxzph1103
-coxzph1103 %>% ggcoxzph
-# >> PH: many low p-values, global < 0.0001 : awful
-noint1103 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Month, data = wf_train)
-vif(noint1103)
+# > model 207
+model207 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Month + number_of_fire, data = wf_train)
+coxzph207 <- cox.zph(model207)
+coxzph207
+coxzph207 %>% ggcoxzph
+# >> PH: low p-values, global < 0.0001 : awful
+vif(model207)
 # >> Multicolinearity: met!
 
+# > model 1231
+model1231 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Month + number_of_fire, data = wf_train)
+coxzph1231 <- cox.zph(model1231)
+coxzph1231
+coxzph1231 %>% ggcoxzph
+# >> PH: low p-values, global < 0.0001 : awful
+vif(model207)  # interaction in 1231 so use model that's the same just without interaction
+# >> Multicolinearity: met!
+
+# > model 1487
+model1487 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Month + number_of_fire + Period, data = wf_train)
+coxzph1487 <- cox.zph(model1487)
+coxzph1487
+coxzph1487 %>% ggcoxzph
+# >> PH: low p-values, global < 0.0001 : awful
+noint1487 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Month + number_of_fire + Period, data = wf_train)
+vif(noint1487)
+# >> Multicolinearity: met!
+
+# > model1135
+model1135 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Method + Month + number_of_fire + Period, data = wf_train)
+coxzph1135 <- cox.zph(model1135)
+coxzph1135
+coxzph1135 %>% ggcoxzph
+# >> PH: low p-values, global < 0.0001 : awful
+noint1135 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Method + Month + number_of_fire + Period, data = wf_train)
+vif(noint1135)
+# >> Multicolinearity: met!
+
+# > we will not check models with more terms because there's no way that PH would be met somehow
+# > perhaps splines or something else if we want to fix PH
+# > this could be because of the negative values... perhaps we shift it?  although that seems weird so...
 
 
 
-# define top model
-logtopmodel <- coxph(Surv(logSizeChange, Status) ~ factor(Fuel_type) + FWI + logIA_Size, data = wf_train)
-
-
-
-## SIZECHANGE
+## SIZECHANGE ##
 # paper's full model (with SizeChange) 
-unlogmodel11 <- coxph(Surv(SizeChange, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + unlogResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
+unlogmodel11 <- coxph(Surv(SizeChange, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + logResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
 # dredge
 options(na.action = "na.fail")
-unlogdredge <- dredge(logmodel11)
-# define top model
-unlogtopmodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ factor(Fuel_type) + FWI + logIA_Size, data = wf_train)
+unlogdredge <- dredge(unlogmodel11)
+#      (Int) Ful_typ      FWI lIA_Siz Mnt nmb_of_fir Prd FWI:lIA_Siz df   logLik   AICc delta weight
+# 1103     +       + -0.04698 -0.4401   +                   0.008974 10 -713.463 1448.2  0.00  0.253
+# 1231     +       + -0.04542 -0.4393   +  -0.009921        0.008064 11 -712.482 1448.5  0.30  0.217
+# 207      +       + -0.05569 -0.2909   +  -0.011490                 10 -713.903 1449.1  0.88  0.163
+# 79       +       + -0.05868 -0.2722   +                             9 -715.242 1449.5  1.32  0.131
+# 1359     +       + -0.04512 -0.4565   +              +    0.009790 11 -713.052 1449.7  1.44  0.123
+# 1487     +       + -0.04305 -0.4572   +  -0.010380   +    0.008906 12 -711.995 1449.8  1.62  0.112
+
+# check model assumptions
+# > model1103 (top)
+model1103 <- coxph(Surv(SizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Month, data = wf_train)
+coxzph1103 <- cox.zph(model1103)
+coxzph1103
+coxzph1103 %>% ggcoxzph
+# >> PH: low p-values, global < 0.0001 : awful
+noint1103 <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Month, data = wf_train)
+vif(noint1103)
+# >> Multicolinearity: met!
+
+# > model79
+model79 <- coxph(Surv(SizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Month, data = wf_train)
+coxzph79 <- cox.zph(model79)
+coxzph79
+coxzph79 %>% ggcoxzph
+# >> PH: low p-values, global < 0.0001 : awful
+vif(model79)
+# >> Multicolinearity: met!
+
+# > model207
+model207 <- coxph(Surv(SizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Month + number_of_fire, data = wf_train)
+coxzph207 <- cox.zph(model207)
+coxzph207
+coxzph207 %>% ggcoxzph
+# >> PH: low p-values, global < 0.0001 : awful
+vif(model207)
+# >> Multicolinearity: met!
+
+# > we will not check models with more terms because there's no way that PH would be met somehow
+# > perhaps splines or something else if we want to fix PH
+# > this could be because of the negative values... perhaps we shift it?  although that seems weird so...
 ```
 
 
@@ -441,11 +506,13 @@ unlogtopmodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ factor(Fuel_type) + FWI 
 # TOP MODELS #
 ##############
 
-## START-STOP 
+# START-STOP #
 # choose top model by AIC (model71) as best model (highest global p-value for PH)
 startstop_topmodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ Fuel_type + FWI + Month, data = wf_train)
 
-## 
+# LOGSIZECHANGE #
+
+# SIZECHANGE #
 ```
 
 
@@ -507,24 +574,29 @@ contsize
 # PAPER'S MODEL #
 #################
 
-papermodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ FWI + factor(Method) + factor(Fuel_type), data = wildfire1)
+papmodel_startstop <- coxph(Surv(IA_Size, BH_Size, Status) ~ FWI + Method + Fuel_type, data = wf_train, x = T)
+logpapmodel <- coxph(Surv(logSizeChange, Status) ~ FWI + Method + Fuel_type, data = wf_train, x = T)
+unlogpapmodel <- coxph(Surv(SizeChange, Status) ~ FWI + Method + Fuel_type, data = wf_train, x = T)
 
+papmodel_startstop %>% tbl_regression(exponentiate = T)
+logpapmodel %>% tbl_regression(exponentiate = T)
+unlogpapmodel %>% tbl_regression(exponentiate = T)
+# small change in coefficients between startstop and logged
+# very minimal changes between logged and unlogged
+```
 
-dim(wf_train)
-dim(wf_test)
-
-
-
-##Run Models with training data##
-topcox <- ####INSERT TOP MODEL HERE
-papcox <- coxph(Surv(logSizeChange, Status) ~ FWI + MethodF + Fuel_typeF, data = wf_train, x=T)
-
-
-
+```{r}
 ##### NOT WORKING #####
+# > it seems to not like that there are no censored obs
 
-pecres <- pec(list(topcox, papcox), 
+pecres <- pec(list(model5359, logpapmodel), 
               data = wf_train, splitMethod = "cv10")
+plot(pecres)
+pecres
+
+pecres <- pec(list(model5359, logpapmodel), 
+              traindata = wf_train, data = wf_test, 
+              splitMethod = "cv10")
 plot(pecres)
 pecres
 ```
