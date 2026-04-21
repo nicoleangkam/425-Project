@@ -313,9 +313,29 @@ coxzph
 coxzph %>% ggcoxzph
 ```
 
+```{r}
+########
+##VIFs##
+########
+
+vif(topmodel)
+```
+
+```{r}
+##################
+##Resid v Fitted##
+##################
+
+topmodel %>% ggcoxdiagnostics()
+```
+
 
 ## Effects Plots + Coefficient Tables
 
-## Assumptions
+```{r}
+##############
+##Coef table##
+##############
 
-## Effects Plots + Coefficient Tables
+topmodel %>% tbl_regression(exponentiate = T)
+```
