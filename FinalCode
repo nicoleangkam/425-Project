@@ -1,0 +1,487 @@
+---
+title: "STAT425 Project Code"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      eval = FALSE)
+library(ggplot2) #
+library(patchwork) #?
+library(ggResidpanel) #?
+library(ggthemes)
+library(cardx)
+library(easyalluvial) #
+library(ggmosaic)
+library(catstats2)
+library(ggrepel)
+library(cetcolor)
+library(gtsummary)
+library(readxl)
+library(mosaic)
+library(tidyverse) #
+library(vcd)
+library(epitools)
+library(car)
+library(survival) #
+library(survminer)
+library(mice) #
+library(ggsurvfit) #
+library(lubridate)
+library(rifttable)
+library(CoxR2)
+library(MuMIn) #
+library(emmeans)
+library(multcomp)
+library(splines)
+library(splineplot)
+library(mi) #
+library(pec) #
+library(knitr)
+library(contsurvplot) #
+library(pammtools) #
+
+theme_set(theme_bw()) #Prevents need for + theme_bw() in ggplots
+```
+
+
+## Data
+
+```{r}
+# read in data
+wildfires <- read.csv("wildfires.csv")
+#create a "size growth until containment" variable
+wildfires$SizeChange <- wildfires$BH_Size - wildfires$IA_Size
+wildfires$logSizeChange <- log(wildfires$SizeChange)
+
+# remove any fires that "did not grow"
+wildfire1 <- wildfires %>% filter(SizeChange!=0)
+# factor categorical variables
+wildfire1 <- wildfire1 %>% 
+  mutate(GrowthF = factor(Growth),
+         StatusF = factor(Status),
+         Fuel_type = factor(Fuel_type),
+         Method = factor(Method),
+         Period = factor(Period),
+         Detection = factor(Detection),
+         Month = factor(Month))
+```
+
+
+## Missing + Tables + CONSORT
+
+```{r}
+# look at missing data
+wildmdf <- missing_data.frame(as.data.frame(wildfire1))
+md.pattern(wildmdf)
+```
+
+
+```{r}
+counts_table <- wildfire1 %>%
+  dplyr::select("Fuel_type", "Method", "Month", "Detection", "Period") %>%
+  tbl_summary(
+    by = Fuel_type,            
+    missing = "no",               
+    statistic = all_categorical() ~ "{n}",   
+    label = list(
+      Method ~ "Method",
+      Month ~ "Month",
+      Detection ~ "Detection",
+      Period ~ "Period"
+    )
+  ) %>%
+  add_overall() %>%                 
+  bold_labels()  
+counts_table
+```
+
+```{r}
+library(DiagrammeR)
+
+grViz("
+digraph consort_wcg {
+  graph [layout = dot,
+         rankdir = TB]
+
+  node [shape = rectangle,
+        fontname = Helvetica,
+        fontsize = 10,
+        width = 2.8,
+        style = filled,
+        fillcolor = White,
+        color = Black]
+
+  # Nodes
+  n0  [label = 'Lightning-Caused Wildfires in Alberta (1996-2002)']
+  n1  [label = 'All Recorded Wildfires in Database \\n(n ≈ 960)']
+  n2  [label = 'Fires where IA occurred between the hours of 23h00 and 04h00\\n(n = 6)']
+  n3  [label = 'Fires with Data Coding Errors\\n(Negative Growth)\\n(n = 65)']
+  n4  [label = 'Retained for Analysis \\n(n=889)']
+  n5  [label = 'Included in Survival Analysis\\n(n = 260)']
+  n6  [label = 'No Growth \\n(Excluded from Survival Analysis)\\n(n = 629)']
+
+  # Ranks for nicer vertical alignment
+  {rank = same; n2}
+  {rank = same; n5 n6}
+
+  # Edges
+  edge [fontname = Helvetica,
+        fontsize = 9]
+
+  n0 -> n1
+  n1 -> n2 [label = '  Excluded']
+  n1 -> n3 [label = ' Excluded']
+  n1 -> n4 [label = 'Included in Analysis']
+  n4 -> n5 [label = 'Included in\nSurvival Analysis']
+  n4 -> n6 [label = 'Excluded from\nSurvival Analysis']
+
+}
+")
+```
+
+## EDA
+
+```{r fig.height = 8, fig.width = 12}
+####################
+# ALLUVIAL DIAGRAM #
+####################
+wildfire1 %>% 
+  dplyr::select(Method, Fuel_type, Detection, Month, Period, GrowthF) %>%  # categorical variables only
+  alluvial_wide(fill_by = "first_variable")
+```
+
+```{r fig.height = 12, fig.width = 12}
+#############
+# LINE PLOT #
+#############
+
+# unfaceted
+wildfire1 %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260)) + 
+  geom_segment(size = 1, alpha = 0.5) + 
+  geom_point(aes(x = SizeChange, y = 1:260), 
+             size = 3, pch = 1) + 
+  labs(title = "Figure X",
+       x = "Size Change (hectares)",
+       y = "Fire ID")
+
+# by Method
+wildfire1 %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260)) + 
+  geom_segment(size = 1, alpha = 0.9) + 
+  geom_point(aes(x = SizeChange, y = 1:260), 
+             size = 3, pch = 1) + 
+  facet_wrap(~Method) +
+  labs(title = "Figure X",
+       x = "Size Change (hectares)",
+       y = "Fire ID")
+
+# by Fuel Type
+wildfire1 %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260)) + 
+  geom_segment(size = 1, alpha = 0.9) + 
+  geom_point(aes(x = SizeChange, y = 1:260), 
+             size = 3, pch = 1) + 
+  facet_wrap(~Fuel_type) +
+  labs(title = "Figure X",
+       x = "Size Change (hectares)",
+       y = "Fire ID")
+
+# by Detection
+wildfire1 %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260)) + 
+  geom_segment(size = 1, alpha = 0.9) + 
+  geom_point(aes(x = SizeChange, y = 1:260), 
+             size = 3, pch = 1) + 
+  facet_wrap(~Detection) +
+  labs(title = "Figure X",
+       x = "Size Change (hectares)",
+       y = "Fire ID")
+
+# by FWI
+wildfire1 %>% 
+  arrange(FWI) %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260, color = FWI)) + 
+  geom_segment(size = 1, alpha = 0.9) + 
+  geom_point(aes(x = SizeChange, y = 1:260), 
+             size = 3, pch = 1) +
+  labs(title = "Figure X",
+       x = "Size Change (hectares)",
+       y = "Fires Ordered By FWI")
+
+# by number_of_fire
+wildfire1 %>% 
+  arrange(number_of_fire) %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260, color = number_of_fire)) + 
+  geom_segment(size = 1, alpha = 0.9) + 
+  geom_point(aes(x = SizeChange, y = 1:260), 
+             size = 3, pch = 1) +
+  labs(title = "Figure X",
+       x = "Size Change (hectares)",
+       y = "Fires Ordered By ?????")
+
+# by logIA_Size
+wildfire1 %>% 
+  arrange(logIA_Size) %>% 
+  ggplot(aes(x = 0, xend = SizeChange, y = 1:260,  yend = 1:260, color = logIA_Size)) + 
+  geom_segment(size = 1, alpha = 0.9) + 
+  geom_point(aes(x = SizeChange, y = 1:260), 
+             size = 3, pch = 1) +
+  labs(title = "Figure X",
+       x = "Size Change (hectares)",
+       y = "Fires Ordered By Logged Initial Attack Size (hectares)")
+```
+
+
+```{r}
+############
+# KM-CURVE #
+############
+
+# SIZECHANGE #
+# goes to y = 0.75 for many of them
+
+# ungrouped
+ggsurvfit(survfit(Surv(SizeChange, Status) ~ 1, data = wildfire1)) +
+  add_confidence_interval() +
+  add_censor_mark() +
+  add_risktable(risktable_stats = c("n.risk", "n.event")) +
+  labs(
+    title = "Figure X",
+    x = "change in size (hectares)",
+    y = "Containment Probability"
+  ) +
+  ylim(c(0, 0.75))
+
+# by Fuel Type
+ggsurvfit(survfit(Surv(SizeChange, Status) ~ Fuel_type, data = wildfire1)) +
+  add_confidence_interval(show.legend = FALSE) +
+  add_censor_mark() +
+  add_risktable(risktable_stats = c("n.risk")) +
+  labs(
+    title = "Figure X",
+    x = "change in size (hectares)",
+    y = "Containment Probability",
+    color = "Fuel Type"
+  ) +
+  theme(legend.position = "right") +
+  ylim(c(0, 0.75))
+
+# by Method
+ggsurvfit(survfit(Surv(SizeChange, Status) ~ Method, data = wildfire1)) +
+  add_confidence_interval(show.legend = FALSE) +
+  add_risktable(risktable_stats = c("n.risk")) +
+  add_censor_mark() +
+  labs(
+    title = "Figure X",
+    x = "change in size (hectares)",
+    y = "Containment Probability",
+    color = "Method"
+  ) +
+  theme(legend.position = "right") +
+  ylim(c(0, 0.75))
+
+# by Detection
+ggsurvfit(survfit(Surv(SizeChange, Status) ~ Detection, data = wildfire1)) +
+  add_confidence_interval(show.legend = FALSE) +
+  add_risktable(risktable_stats = c("n.risk")) +
+  add_censor_mark() +
+  labs(
+    title = "Figure X",
+    x = "change in size (hectares)",
+    y = "Containment Probability",
+    color = "Detection"
+  ) +
+  theme(legend.position = "right") +
+  ylim(c(0, 0.75))
+
+# by Period
+ggsurvfit(survfit(Surv(SizeChange, Status) ~ Period, data = wildfire1)) +
+  add_confidence_interval(show.legend = FALSE) +
+  add_risktable(risktable_stats = c("n.risk")) +
+  add_censor_mark() +
+  labs(
+    title = "Figure X",
+    x = "change in size (hectares)",
+    y = "Containment Probability",
+    color = "Method"
+  ) +
+  theme(legend.position = "right") +
+  ylim(c(0, 0.75))
+
+# by Month
+ggsurvfit(survfit(Surv(SizeChange, Status) ~ Month, data = wildfire1)) +
+  add_confidence_interval(show.legend = FALSE) +
+  add_risktable(risktable_stats = c("n.risk")) +
+  add_censor_mark() +
+  labs(
+    title = "Figure X",
+    x = "change in size (hectares)",
+    y = "Containment Probability",
+    color = "Method"
+  ) +
+  theme(legend.position = "right") +
+  ylim(c(0, 0.75))
+
+# by FWI
+plot_surv_area(
+  time = "SizeChange",
+  status = "Status",
+  variable = "FWI",
+  data = wildfire1,
+  model = coxph(Surv(SizeChange, Status) ~ FWI, data = wildfire1, x = T),
+  start_color = "firebrick4",
+  end_color = "gold"
+) + 
+  labs(title = "Figure X",
+       x = "size change (hectares)",
+       y = "Containment Probability")
+
+# by number_of_fire
+plot_surv_area(
+  time = "SizeChange",
+  status = "Status",
+  variable = "number_of_fire",
+  data = wildfire1,
+  model = coxph(Surv(SizeChange, Status) ~ number_of_fire, data = wildfire1, x = T),
+  start_color = "firebrick4",
+  end_color = "gold"
+) + 
+  #ylim(c(0, 0.30)) + xlim(c(0, 20000)) + 
+  labs(title = "Figure X",
+       x = "size change (hectares)",
+       y = "Containment Probability")
+
+# by logIA_Size
+plot_surv_area(
+  time = "SizeChange",
+  status = "Status",
+  variable = "logIA_Size",
+  data = wildfire1,
+  model = coxph(Surv(SizeChange, Status) ~ logIA_Size, data = wildfire1, x = T),
+  start_color = "firebrick4",
+  end_color = "gold"
+) + 
+  labs(title = "Figure X",
+       x = "size change (hectares)",
+       y = "Containment Probability")
+```
+
+## Model Selection
+
+```{r}
+##############
+# TRAIN/TEST #
+##############
+
+set.seed(425) # run code sequentially once
+wf_train <- wildfire1 %>% slice_sample(prop = 0.7)
+wf_test <- wildfire1 %>% anti_join(wf_train)
+```
+
+```{r}
+##########
+# DREDGE #
+##########
+## SIZECHANGE ##
+# paper's full model (with SizeChange) 
+unlogmodel11 <- coxph(Surv(SizeChange, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + logResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
+# dredge
+options(na.action = "na.fail")
+unlogdredge <- dredge(unlogmodel11, rank = "AIC")
+
+#      (Int) Ful_typ      FWI lIA_Siz lgR_tim Mth Mnt nmb_of_fir Prd FWI:lIA_Siz Mth:nmb_of_fir df   logLik    AIC delta weight
+# 5359     +       + -0.04317 -0.5222           +   +  -0.012960        0.012130              + 18 -705.042 1446.1  0.00  0.232
+# 1103     +       + -0.04698 -0.4401               +                   0.008974                10 -713.463 1446.9  0.84  0.152
+# 1231     +       + -0.04542 -0.4393               +  -0.009921        0.008064                11 -712.482 1447.0  0.88  0.150
+# 1135     +       + -0.04298 -0.5088           +   +                   0.012600                14 -709.897 1447.8  1.71  0.099
+# 207      +       + -0.05569 -0.2909               +  -0.011490                                10 -713.903 1447.8  1.72  0.098
+# 5375     +       + -0.04302 -0.5175 0.01871   +   +  -0.013230        0.011780              + 19 -704.967 1447.9  1.85  0.092
+# 1487     +       + -0.04305 -0.4572               +  -0.010380   +    0.008906                12 -711.995 1448.0  1.91  0.090
+# 5615     +       + -0.04266 -0.5255           +   +  -0.012750   +    0.012290              + 19 -705.021 1448.0  1.96  0.087
+
+# > use second top model by AIC
+```
+
+## Final Models
+
+```{r}
+##############
+# TOP MODELS #
+##############
+
+# OURS #
+OurTopModel <- coxph(Surv(SizeChange, Status) ~ Fuel_type + FWI*logIA_Size + Month, data = wf_train, x = T)
+OurTopModel %>% tbl_regression(exponentiate = T)
+
+# PAPER #
+PaperTopModel <- coxph(Surv(SizeChange, Status) ~ FWI + Method + Fuel_type, data = wf_train, x = T)
+PaperTopModel %>% tbl_regression(exponentiate = T)
+```
+
+## Assumptions
+
+```{r}
+# OURS #
+# proportional hazards
+top_coxzph <- cox.zph(OurTopModel)
+top_coxzph
+top_coxzph %>% ggcoxzph
+# multicolinearity
+noint_topmodel <- coxph(Surv(SizeChange, Status) ~ Fuel_type + FWI + logIA_Size + Month, data = wf_train, x = T)
+vif(noint_topmodel)
+# linearity
+OurTopModel %>% ggcoxdiagnostics()
+
+# PAPER #
+# proportional hazards
+pap_coxzph <- cox.zph(PaperTopModel)
+pap_coxzph
+pap_coxzph %>% ggcoxzph
+# multicolinearity
+vif(PaperTopModel)
+# linearity
+PaperTopModel %>% ggcoxdiagnostics()
+```
+
+## Effects Plots
+
+```{r, fig.height=5, fig.width=12}
+# OURS #
+contsize_our <- plot_surv_contour(
+    time = "SizeChange",
+    status = "Status",
+    variable = "FWI",
+    data = wf_train,
+    model = OurTopModel) +
+  labs(x = "Size Change", 
+       title = "Our Top Model Contour Plot")
+
+# PAPER #
+contsize_pap <- plot_surv_contour(
+    time = "SizeChange",
+    status = "Status",
+    variable = "FWI",
+    data = wf_train,
+    model = PaperTopModel) + 
+  labs(x = "Size Change", 
+       title="Paper Model Contour Plot")
+
+# display
+contsize_our + contsize_pap
+```
+
+## Prediction + Comparison
+
+```{r, fig.height=7, fig.width=5}
+###############
+# BRIER SCORE #
+###############
+pecres <- pec(list(OurTopModel, PaperTopModel), 
+              data = wf_train, splitMethod = "cv10")
+
+plot(pecres)
+pecres
+```
+
