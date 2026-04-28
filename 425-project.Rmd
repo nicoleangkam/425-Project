@@ -314,18 +314,10 @@ wf_test <- wildfire1 %>% anti_join(wf_train)
 #### Full models ###
 ####################
 
-## START-STOP ##
-# Original full model used in paper
-model11 <- coxph(Surv(IA_Size, BH_Size, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + logResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
-
-
 ## Size Change ##
 #  Full model used in paper with size change instead of start stop
-model12 <- coxph(Surv(SizeChange, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + logResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
+OurMod <- coxph(Surv(SizeChange, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + logResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
 
-## Size Change ##
-#  Full model used in paper with size change instead of start stop
-model13 <- coxph(Surv(logSizeChange, Status) ~ FWI + Method + number_of_fire + Period + Detection + Month + Fuel_type + logIA_Size + logResp_time + FWI*logIA_Size + Fuel_type*logIA_Size + Method*number_of_fire + Method*logIA_Size, data = wf_train)
 ```
 
 ```{r}
@@ -333,15 +325,7 @@ model13 <- coxph(Surv(logSizeChange, Status) ~ FWI + Method + number_of_fire + P
 #### DREDGE #####
 #################
 
-# Start Stop dredge
-options(na.action = "na.fail")
-dredge <- dredge(model11, rank = "AIC")
-
-# Size Change dredge
-dredge2 <- dredge(model12, rank = "AIC")
-
-# Log Size Change dredge
-dredge3 <- dredge(model13, rank = "AIC")
+dredge1 <- dredge(OurMod, rank = "AIC")
 ```
 
 
@@ -351,15 +335,11 @@ dredge3 <- dredge(model13, rank = "AIC")
 # TOP MODELS #
 ##############
 
-# START-STOP #
-# choose top model by AIC (model71) as best model (highest global p-value for PH)
-ssTopmodel <- coxph(Surv(IA_Size, BH_Size, Status) ~ Fuel_type + FWI*logIA_Size, data = wf_train, x=T)
-
 # SIZE CHANGE #
-scTopmodel <- coxph(Surv(SizeChange, Status) ~ Fuel_type + FWI + logIA_Size, data = wf_train, x=T)
+OurTopmodel <- coxph(Surv(SizeChange, Status) ~ Fuel_type + Month + FWI*logIA_Size, data = wf_train, x=T)
 
-# lOG SIZE CHANGE #
-lscTopmodel <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size, data = wf_train, x=T)
+# TOP MODEL FROM PAPER (With SizeChange)
+PaperTopmodel <- coxph(Surv(SizeChange, Status) ~ FWI + Method + Fuel_type, data = wf_train, x=T)
 
 ```
 
@@ -367,20 +347,15 @@ lscTopmodel <- coxph(Surv(logSizeChange, Status) ~ Fuel_type + FWI + logIA_Size,
 ## Assumptions
 
 ```{r}
-#Start Stop
-coxzph <- cox.zph(ssTopmodel)
+#Our Model
+coxzph <- cox.zph(OurTopmodel)
 coxzph
 coxzph %>% ggcoxzph()
 
-#Size Change
-coxzph1 <- cox.zph(scTopmodel)
+#Paper model
+coxzph1 <- cox.zph(PaperTopmodel)
 coxzph1
 coxzph1 %>% ggcoxzph()
-
-#Log Size Change
-coxzph2 <- cox.zph(lscTopmodel)
-coxzph2
-coxzph2 %>% ggcoxzph()
 ```
 
 ```{r}
@@ -388,9 +363,12 @@ coxzph2 %>% ggcoxzph()
 ##VIFs##
 ########
 
-vif(ssTopmodel)
-vif(scTopmodel)
-vif(lscTopmodel)
+vif(OurTopmodel)
+vif(PaperTopmodel)
+
+OurTopmodel1 <- coxph(Surv(SizeChange, Status) ~ Fuel_type + Month + FWI + logIA_Size, data = wf_train, x=T)
+
+vif(OurTopmodel1)
 ```
 
 ```{r}
@@ -398,10 +376,10 @@ vif(lscTopmodel)
 ##Resid v Fitted##
 ##################
 
-ssTopmodel %>% ggcoxdiagnostics()
-scTopmodel %>% ggcoxdiagnostics()
-lscTopmodel %>% ggcoxdiagnostics()
+p1 <- OurTopmodel1 %>% ggcoxdiagnostics()
+p2 <- PaperTopmodel %>% ggcoxdiagnostics()
 
+p1/p2
 ```
 
 
@@ -412,55 +390,44 @@ lscTopmodel %>% ggcoxdiagnostics()
 ##Coef table##
 ##############
 
-ssTopmodel %>% tbl_regression(exponentiate = T)
-scTopmodel %>% tbl_regression(exponentiate = T)
-lscTopmodel %>% tbl_regression(exponentiate = T)
+OurTopmodel %>% tbl_regression(exponentiate = T)
+PaperTopmodel %>% tbl_regression(exponentiate = T)
 
 ```
 
-```{r}
+```{r, fig.height=5, fig.width=12}
 library(contsurvplot)
-wildfire1 <- wildfire1 %>% 
-  mutate(shiftedLogSizeChange = logSizeChange - min(logSizeChange))
-contsize <- plot_surv_contour(time="shiftedLogSizeChange",
+
+contsize <- plot_surv_contour(time="SizeChange",
                status = "Status",
                variable="FWI",
                data= wildfire1,
-               model=scTopmodel) 
+               model=OurTopmodel) +
+  labs(x= "Size Change", title="Top Model Contour Plot")
 
-contsize
 
-wildfire1 <- wildfire1 %>% 
-  mutate(shiftedLogSizeChange = logSizeChange - min(logSizeChange))
-contsize1 <- plot_surv_contour(time="shiftedLogSizeChange",
+contsize1 <- plot_surv_contour(time="SizeChange",
                status = "Status",
                variable="FWI",
                data= wildfire1,
-               model=ssTopmodel) 
+               model=PaperTopmodel) + 
+  labs(x= "Size Change", title="Paper Model Contour Plot")
 
-contsize1
 
-wildfire1 <- wildfire1 %>% 
-  mutate(shiftedLogSizeChange = logSizeChange - min(logSizeChange))
-contsize2 <- plot_surv_contour(time="shiftedLogSizeChange",
-               status = "Status",
-               variable="FWI",
-               data= wildfire1,
-               model=lscTopmodel) 
-
-contsize2 
+contsize + contsize1 
 ```
 
 
 
 ## Prediction + Comparison
 
-```{r}
+```{r, fig.height=7, fig.width=5}
 ###############
 ##BRIER SCORE##
 ###############
-pecres <- pec(list(scTopmodel, lscTopmodel, ssTopmodel), 
+pecres <- pec(list(OurTopmodel, PaperTopmodel), 
               data = wf_train, splitMethod = "cv10")
+
 plot(pecres)
 pecres
 
