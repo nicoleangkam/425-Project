@@ -248,7 +248,6 @@ ggsurvfit(survfit(Surv(SizeChange, Status) ~ 1, data = wildfire1)) +
   add_censor_mark() +
   add_risktable(risktable_stats = c("n.risk", "n.event")) +
   labs(
-    title = "Figure X",
     x = "change in size (hectares)",
     y = "Containment Probability"
   ) +
@@ -260,7 +259,6 @@ ggsurvfit(survfit(Surv(SizeChange, Status) ~ Fuel_type, data = wildfire1)) +
   add_censor_mark() +
   add_risktable(risktable_stats = c("n.risk")) +
   labs(
-    title = "Figure X",
     x = "change in size (hectares)",
     y = "Containment Probability",
     color = "Fuel Type"
@@ -274,7 +272,6 @@ ggsurvfit(survfit(Surv(SizeChange, Status) ~ Method, data = wildfire1)) +
   add_risktable(risktable_stats = c("n.risk")) +
   add_censor_mark() +
   labs(
-    title = "Figure X",
     x = "change in size (hectares)",
     y = "Containment Probability",
     color = "Method"
@@ -288,7 +285,6 @@ ggsurvfit(survfit(Surv(SizeChange, Status) ~ Detection, data = wildfire1)) +
   add_risktable(risktable_stats = c("n.risk")) +
   add_censor_mark() +
   labs(
-    title = "Figure X",
     x = "change in size (hectares)",
     y = "Containment Probability",
     color = "Detection"
@@ -302,7 +298,6 @@ ggsurvfit(survfit(Surv(SizeChange, Status) ~ Period, data = wildfire1)) +
   add_risktable(risktable_stats = c("n.risk")) +
   add_censor_mark() +
   labs(
-    title = "Figure X",
     x = "change in size (hectares)",
     y = "Containment Probability",
     color = "Method"
@@ -316,7 +311,6 @@ ggsurvfit(survfit(Surv(SizeChange, Status) ~ Month, data = wildfire1)) +
   add_risktable(risktable_stats = c("n.risk")) +
   add_censor_mark() +
   labs(
-    title = "Figure X",
     x = "change in size (hectares)",
     y = "Containment Probability",
     color = "Method"
@@ -334,8 +328,7 @@ plot_surv_area(
   start_color = "firebrick4",
   end_color = "gold"
 ) + 
-  labs(title = "Figure X",
-       x = "size change (hectares)",
+  labs(x = "size change (hectares)",
        y = "Containment Probability")
 
 # by number_of_fire
@@ -347,10 +340,8 @@ plot_surv_area(
   model = coxph(Surv(SizeChange, Status) ~ number_of_fire, data = wildfire1, x = T),
   start_color = "firebrick4",
   end_color = "gold"
-) + 
-  #ylim(c(0, 0.30)) + xlim(c(0, 20000)) + 
-  labs(title = "Figure X",
-       x = "size change (hectares)",
+) +  
+  labs(x = "size change (hectares)",
        y = "Containment Probability")
 
 # by logIA_Size
@@ -363,8 +354,7 @@ plot_surv_area(
   start_color = "firebrick4",
   end_color = "gold"
 ) + 
-  labs(title = "Figure X",
-       x = "size change (hectares)",
+  labs(x = "size change (hectares)",
        y = "Containment Probability")
 ```
 
