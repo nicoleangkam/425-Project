@@ -468,8 +468,11 @@ contsize_our + contsize_pap
 ###############
 # BRIER SCORE #
 ###############
-pecres <- pec(list(OurTopModel, PaperTopModel), 
-              data = wf_train, splitMethod = "cv10")
+pecres <- pec(
+  list(OurTopmodel, PaperTopmodel),
+  data = wf_test,
+  splitMethod = "none"
+)
 
 plot(pecres)
 pecres
