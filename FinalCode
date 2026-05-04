@@ -5,7 +5,8 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
-                      eval = FALSE)
+                      eval = TRUE,
+                      warning = FALSE)
 library(ggplot2) #
 library(patchwork) #?
 library(ggResidpanel) #?
@@ -16,7 +17,7 @@ library(ggmosaic)
 library(catstats2)
 library(ggrepel)
 library(cetcolor)
-library(gtsummary)
+library(gtsummary) #
 library(readxl)
 library(mosaic)
 library(tidyverse) #
@@ -24,12 +25,12 @@ library(vcd)
 library(epitools)
 library(car)
 library(survival) #
-library(survminer)
+library(survminer) #
 library(mice) #
 library(ggsurvfit) #
 library(lubridate)
 library(rifttable)
-library(CoxR2)
+library(CoxR2) #
 library(MuMIn) #
 library(emmeans)
 library(multcomp)
@@ -40,6 +41,7 @@ library(pec) #
 library(knitr)
 library(contsurvplot) #
 library(pammtools) #
+library(DiagrammeR) #
 
 theme_set(theme_bw()) #Prevents need for + theme_bw() in ggplots
 ```
@@ -97,7 +99,6 @@ counts_table
 ```
 
 ```{r}
-library(DiagrammeR)
 
 grViz("
 digraph consort_wcg {
@@ -249,70 +250,70 @@ ggsurvfit(survfit(Surv(SizeChange, Status) ~ 1, data = wildfire1)) +
   add_risktable(risktable_stats = c("n.risk", "n.event")) +
   labs(
     x = "change in size (hectares)",
-    y = "Containment Probability"
+    y = "Non-Containment Probability"
   ) +
   ylim(c(0, 0.75))
 
 # by Fuel Type
-ggsurvfit(survfit(Surv(SizeChange, Status) ~ Fuel_type, data = wildfire1)) +
+fueltype.p <- ggsurvfit(survfit(Surv(SizeChange, Status) ~ Fuel_type, data = wildfire1)) +
   add_confidence_interval(show.legend = FALSE) +
   add_censor_mark() +
   add_risktable(risktable_stats = c("n.risk")) +
   labs(
     x = "change in size (hectares)",
-    y = "Containment Probability",
+    y = "Non-Containment Probability",
     color = "Fuel Type"
   ) +
   theme(legend.position = "right") +
   ylim(c(0, 0.75))
 
 # by Method
-ggsurvfit(survfit(Surv(SizeChange, Status) ~ Method, data = wildfire1)) +
+method.p <- ggsurvfit(survfit(Surv(SizeChange, Status) ~ Method, data = wildfire1)) +
   add_confidence_interval(show.legend = FALSE) +
   add_risktable(risktable_stats = c("n.risk")) +
   add_censor_mark() +
   labs(
     x = "change in size (hectares)",
-    y = "Containment Probability",
+    y = "Non-Containment Probability",
     color = "Method"
   ) +
   theme(legend.position = "right") +
   ylim(c(0, 0.75))
 
 # by Detection
-ggsurvfit(survfit(Surv(SizeChange, Status) ~ Detection, data = wildfire1)) +
+detection.p <- ggsurvfit(survfit(Surv(SizeChange, Status) ~ Detection, data = wildfire1)) +
   add_confidence_interval(show.legend = FALSE) +
   add_risktable(risktable_stats = c("n.risk")) +
   add_censor_mark() +
   labs(
     x = "change in size (hectares)",
-    y = "Containment Probability",
+    y = "Non-Containment Probability",
     color = "Detection"
   ) +
   theme(legend.position = "right") +
   ylim(c(0, 0.75))
 
 # by Period
-ggsurvfit(survfit(Surv(SizeChange, Status) ~ Period, data = wildfire1)) +
+period.p <- ggsurvfit(survfit(Surv(SizeChange, Status) ~ Period, data = wildfire1)) +
   add_confidence_interval(show.legend = FALSE) +
   add_risktable(risktable_stats = c("n.risk")) +
   add_censor_mark() +
   labs(
     x = "change in size (hectares)",
-    y = "Containment Probability",
+    y = "Non-Containment Probability",
     color = "Method"
   ) +
   theme(legend.position = "right") +
   ylim(c(0, 0.75))
 
 # by Month
-ggsurvfit(survfit(Surv(SizeChange, Status) ~ Month, data = wildfire1)) +
+month.p <- ggsurvfit(survfit(Surv(SizeChange, Status) ~ Month, data = wildfire1)) +
   add_confidence_interval(show.legend = FALSE) +
   add_risktable(risktable_stats = c("n.risk")) +
   add_censor_mark() +
   labs(
     x = "change in size (hectares)",
-    y = "Containment Probability",
+    y = "Non-Containment Probability",
     color = "Method"
   ) +
   theme(legend.position = "right") +
@@ -329,7 +330,7 @@ plot_surv_area(
   end_color = "gold"
 ) + 
   labs(x = "size change (hectares)",
-       y = "Containment Probability")
+       y = "Non-Containment Probability")
 
 # by number_of_fire
 plot_surv_area(
@@ -342,7 +343,7 @@ plot_surv_area(
   end_color = "gold"
 ) +  
   labs(x = "size change (hectares)",
-       y = "Containment Probability")
+       y = "Non-Containment Probability")
 
 # by logIA_Size
 plot_surv_area(
@@ -355,7 +356,12 @@ plot_surv_area(
   end_color = "gold"
 ) + 
   labs(x = "size change (hectares)",
-       y = "Containment Probability")
+       y = "Non-Containment Probability")
+
+
+# put categorical KMs in one figure
+(fueltype.p / method.p)
+(period.p + detection.p / month.p)
 ```
 
 ## Model Selection
