@@ -441,11 +441,16 @@ vif(PaperTopModel)
 PaperTopModel %>% ggcoxdiagnostics()
 ```
 
-## Effects Plots & Summaries
+## Summaries
 
-```{r, fig.height=5, fig.width=12}
+```{r, fig.height=7, fig.width=12}
+#################
+# EFFECTS PLOTS #
+#################
+
 # OURS #
-contsize_our <- plot_surv_contour(
+# > FWI
+FWI_contsize_our <- plot_surv_contour(
     time = "SizeChange",
     status = "Status",
     variable = "FWI",
@@ -453,9 +458,18 @@ contsize_our <- plot_surv_contour(
     model = OurTopModel) +
   labs(x = "Size Change", 
        title = "Our Top Model Contour Plot")
+# > logIA_Size
+IAsize_contsize_our <- plot_surv_contour(
+    time = "SizeChange",
+    status = "Status",
+    variable = "logIA_Size",
+    data = wf_train,
+    model = OurTopModel) +
+  labs(x = "Size Change", 
+       title = "Our Top Model Contour Plot")
 
 # PAPER #
-contsize_pap <- plot_surv_contour(
+FWI_contsize_pap <- plot_surv_contour(
     time = "SizeChange",
     status = "Status",
     variable = "FWI",
@@ -465,7 +479,8 @@ contsize_pap <- plot_surv_contour(
        title="Paper Model Contour Plot")
 
 # display
-contsize_our + contsize_pap
+IAsize_contsize_our
+FWI_contsize_our + FWI_contsize_pap
 ```
 
 ```{r}
