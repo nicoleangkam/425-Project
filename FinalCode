@@ -435,7 +435,7 @@ vif(PaperTopModel)
 PaperTopModel %>% ggcoxdiagnostics()
 ```
 
-## Effects Plots
+## Effects Plots & Summaries
 
 ```{r, fig.height=5, fig.width=12}
 # OURS #
@@ -460,6 +460,18 @@ contsize_pap <- plot_surv_contour(
 
 # display
 contsize_our + contsize_pap
+```
+
+```{r}
+#############
+# R-SQUARED #
+#############
+
+# OURS #
+coxr2(OurTopModel)  # R^2 = 0.4547202 
+
+# PAPER #
+coxr2(PaperTopModel)  # R^2 = 0.1824051  
 ```
 
 ## Prediction + Comparison
